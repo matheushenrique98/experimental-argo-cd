@@ -1,46 +1,62 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: backend-prd
+version: 2.1
 
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: backend
-  namespace: backend-prd
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: backend
-  template:
-    metadata:
-      labels:
-        app: backend
-    spec:
-      containers:
-        - name: backend
-          image: backend-app:latest
-          ports:
-            - containerPort: 80
-          resources:
-            requests:
-              memory: "50Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "1"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: backend-service
-  namespace: backend-prd
-spec:
-  type: ClusterIP
-  ports:
-    - port: 80
-      targetPort: 80
-  selector:
-    app: backend
+executors:
+  docker-executor:
+    docker:
+      - image: cimg/python:3.9
+    working_directory: ~/repo
+    environment:
+      DOCKER_TLS_CERTDIR: "/certs"
+
+jobs:
+  build:
+    executor: docker-executor
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 20.10.14
+          docker_layer_caching: true
+      - run:
+          name: Build Docker image
+          command: |
+            docker build --no-cache -t backend-app:latest -f deploy/Dockerfile .
+      - run:
+          name: Push Docker image to registry
+          command: |
+            echo $DOCKER_PASSWORD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker tag backend-app:latest $DOCKER_LOGIN/backend-app:latest
+            docker push $DOCKER_LOGIN/backend-app:latest
+
+  deploy:
+    executor: docker-executor
+    steps:
+      - checkout
+      - run:
+          name: Install Argo CD CLI
+          command: |
+            VERSION=$(curl --silent "https://api.github.com/repos/argoproj/argo-cd/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+            curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/download/$VERSION/argocd-linux-amd64
+            sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+            rm argocd-linux-amd64
+      - run:
+          name: Login to Argo CD
+          command: |
+            argocd login $ARGOCD_SERVER --username $ARGOCD_USERNAME --password $ARGOCD_PASSWORD --insecure
+      - run:
+          name: Update application image and sync
+          command: |
+            if argocd app get new_app; then
+              argocd app set new_app --image $DOCKER_LOGIN/backend-app:latest
+              argocd app sync new_app --timeout 600
+            else
+              argocd app create new_app --repo $DOCKER_LOGIN --path deploy --dest-server https://kubernetes.default.svc --dest-namespace default --sync-policy automated --image $DOCKER_LOGIN/backend-app:latest
+            fi
+
+workflows:
+  version: 2
+  build_and_deploy:
+    jobs:
+      - build
+      - deploy:
+          requires:
+            - build

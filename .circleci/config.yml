@@ -7,8 +7,6 @@ executors:
     working_directory: ~/repo
     environment:
       DOCKER_TLS_CERTDIR: "/certs"
-      DOCKER_BUILDKIT: 1
-
 
 jobs:
   build:
@@ -22,22 +20,33 @@ jobs:
           name: Build Docker image
           command: |
             docker build --no-cache -t backend-app:latest -f deploy/Dockerfile .
+      - run:
+          name: Push Docker image to registry
+          command: |
+            echo $DOCKER_PASSWORD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker tag backend-app:latest $DOCKER_LOGIN/backend-app:$CIRCLE_SHA1
+            docker push $DOCKER_LOGIN/backend-app:$CIRCLE_SHA1
 
   deploy:
     executor: docker-executor
     steps:
       - checkout
-      - setup_remote_docker:
-          version: 20.10.14
-          docker_layer_caching: true
+      - run:
+          name: Install Argo CD CLI
+          command: |
+            VERSION=$(curl --silent "https://api.github.com/repos/argoproj/argo-cd/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+            curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/download/$VERSION/argocd-linux-amd64
+            sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+            rm argocd-linux-amd64
       - run:
           name: Login to Argo CD
           command: |
-            argocd login $ARGOCD_HOST --username admin --password $ARGOCD_PASSWORD
+            argocd login $ARGOCD_SERVER --username $ARGOCD_USERNAME --password $ARGOCD_PASSWORD --insecure
       - run:
-          name: Deploy to Kubernetes
+          name: Update application image and sync
           command: |
-            kubectl apply -f kubernetes/prd/deployment.yaml
+            argocd app set myapp --image $DOCKER_LOGIN/backend-app:$CIRCLE_SHA1
+            argocd app sync myapp --timeout 600
 
 workflows:
   version: 2
