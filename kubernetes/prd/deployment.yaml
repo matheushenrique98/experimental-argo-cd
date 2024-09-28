@@ -35,7 +35,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: fastapi-service
+  name: backend-service
   namespace: backend-prd
 spec:
   type: ClusterIP
@@ -43,4 +43,4 @@ spec:
     - port: 80
       targetPort: 80
   selector:
-    app: backend  # Altere para corresponder ao app label
+    app: backend

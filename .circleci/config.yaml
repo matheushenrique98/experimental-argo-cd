@@ -1,0 +1,38 @@
+version: 2.1
+
+executors:
+  docker-executor:
+    docker:
+      - image: circleci/python:3.8
+
+jobs:
+  build:
+    executor: docker-executor
+    steps:
+      - checkout
+      - run:
+          name: Build Docker image
+          command: |
+            docker build -t backend-app:latest -f deploy/Dockerfile .
+
+  deploy:
+    executor: docker-executor
+    steps:
+      - checkout
+      - run:
+          name: Login to Argo CD
+          command: |
+            argocd login e480-143-0-58-137.ngrok-free.app --username admin --password $ARGOCD_PASSWORD
+      - run:
+          name: Deploy to Kubernetes
+          command: |
+            kubectl apply -f kubernetes/prd/deployment.yaml
+
+workflows:
+  version: 2
+  build_and_deploy:
+    jobs:
+      - build
+      - deploy:
+          requires:
+            - build
