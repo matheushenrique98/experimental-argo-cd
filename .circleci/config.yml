@@ -24,8 +24,8 @@ jobs:
           name: Push Docker image to registry
           command: |
             echo $DOCKER_PASSWORD | docker login -u $DOCKER_LOGIN --password-stdin
-            docker tag backend-app:latest $DOCKER_LOGIN/backend-app:$CIRCLE_SHA1
-            docker push $DOCKER_LOGIN/backend-app:$CIRCLE_SHA1
+            docker tag backend-app:latest $DOCKER_LOGIN/backend-app:latest
+            docker push $DOCKER_LOGIN/backend-app:latest
 
   deploy:
     executor: docker-executor
@@ -45,8 +45,12 @@ jobs:
       - run:
           name: Update application image and sync
           command: |
-            argocd app set myapp --image $DOCKER_LOGIN/backend-app:$CIRCLE_SHA1
-            argocd app sync myapp --timeout 600
+            if argocd app get new_app; then
+              argocd app set new_app --image $DOCKER_LOGIN/backend-app:latest
+              argocd app sync new_app --timeout 600
+            else
+              argocd app create new_app --repo $DOCKER_LOGIN --path deploy --dest-server https://kubernetes.default.svc --dest-namespace default --sync-policy automated --image $DOCKER_LOGIN/backend-app:latest
+            fi
 
 workflows:
   version: 2
