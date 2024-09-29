@@ -41,14 +41,9 @@ jobs:
           command: |
             argocd login $ARGOCD_SERVER --username $ARGOCD_USERNAME --password $ARGOCD_PASSWORD --insecure
       - run:
-          name: Update application image and sync
+          name: Sync application with Argo CD
           command: |
-            if argocd app get new_app; then
-              argocd app set new_app --image escolhas/personal-repository:latest
-              argocd app sync new_app --timeout 600
-            else
-              argocd app create new_app --repo $DOCKER_LOGIN --path deploy --dest-server https://kubernetes.default.svc --dest-namespace default --sync-policy automated --image escolhas/personal-repository:latest
-            fi
+            argocd app sync backend-app --timeout 600
 
 workflows:
   version: 2
