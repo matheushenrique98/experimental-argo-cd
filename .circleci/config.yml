@@ -13,9 +13,7 @@ jobs:
     executor: docker-executor
     steps:
       - checkout
-      - setup_remote_docker:
-          version: 20.10.14
-          docker_layer_caching: true
+      - setup_remote_docker
       - run:
           name: Build Docker image
           command: |
@@ -24,8 +22,8 @@ jobs:
           name: Push Docker image to registry
           command: |
             echo $DOCKER_PASSWORD | docker login -u $DOCKER_LOGIN --password-stdin
-            docker tag backend-app:latest $DOCKER_LOGIN/backend-app:latest
-            docker push $DOCKER_LOGIN/backend-app:latest
+            docker tag backend-app:latest escolhas/personal-repository:latest
+            docker push escolhas/personal-repository:latest
 
   deploy:
     executor: docker-executor
@@ -46,10 +44,10 @@ jobs:
           name: Update application image and sync
           command: |
             if argocd app get new_app; then
-              argocd app set new_app --image $DOCKER_LOGIN/backend-app:latest
+              argocd app set new_app --image escolhas/personal-repository:latest
               argocd app sync new_app --timeout 600
             else
-              argocd app create new_app --repo $DOCKER_LOGIN --path deploy --dest-server https://kubernetes.default.svc --dest-namespace default --sync-policy automated --image $DOCKER_LOGIN/backend-app:latest
+              argocd app create new_app --repo $DOCKER_LOGIN --path deploy --dest-server https://kubernetes.default.svc --dest-namespace default --sync-policy automated --image escolhas/personal-repository:latest
             fi
 
 workflows:
