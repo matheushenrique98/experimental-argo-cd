@@ -19,9 +19,11 @@ spec:
       labels:
         app: backend
     spec:
+      imagePullSecrets:
+        - name: regcred
       containers:
         - name: backend
-          image: backend-app:latest
+          image: escolhas/personal-repository:latest
           ports:
             - containerPort: 80
           resources:
