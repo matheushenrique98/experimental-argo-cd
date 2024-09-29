@@ -43,7 +43,7 @@ jobs:
       - run:
           name: Sync application with Argo CD
           command: |
-            argocd app sync backend-app --timeout 600
+            argocd app sync backend-app --timeout 600 --prune
 
 workflows:
   version: 2
